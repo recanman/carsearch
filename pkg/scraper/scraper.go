@@ -2,10 +2,14 @@
 package scraper
 
 import (
+	"carsearch/pkg/models"
 	"fmt"
 	"os"
 	"time"
 )
+
+var Notifications = make(chan models.Listing)
+var Failure = make(chan error)
 
 func addScrape(id string, body []byte) error {
 	// makedirectory scrapes

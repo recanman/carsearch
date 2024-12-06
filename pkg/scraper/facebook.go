@@ -15,7 +15,7 @@ import (
 )
 
 func constructFacebookURL(search models.Search) (string, error) {
-	base := "https://www.facebook.com/marketplace/category/vehicles?"
+	base := "https://www.facebook.com/marketplace/toronto/vehicles?"
 
 	u, err := url.Parse(base)
 	if err != nil {
@@ -72,11 +72,12 @@ var LISTINGS_END = ",\"page_info\":"
 func addListing(listing models.Listing) {
 	new, err := store.CreateListing(listing)
 	if err != nil {
-		fmt.Println("Error creating listing:", err)
+		Failure <- err
 	}
 
 	if new {
 		fmt.Println("New listing: https://www.facebook.com/marketplace/item/" + listing.ID)
+		Notifications <- listing
 	}
 
 }
@@ -92,11 +93,11 @@ func FacebookMarketplace(search models.Search) {
 		end := strings.Index(html, LISTINGS_END)
 
 		if start == -1 || end == -1 {
-			fmt.Println("Could not find listings")
+			Failure <- fmt.Errorf("could not find listings")
 			return
 		}
 		if end < start {
-			fmt.Println("End is before start")
+			Failure <- fmt.Errorf("end is before start") // this should never happen
 			return
 		}
 
@@ -104,12 +105,17 @@ func FacebookMarketplace(search models.Search) {
 
 		var rawListings []models.RawListing
 		if err := json.Unmarshal([]byte(edgesData), &rawListings); err != nil {
-			fmt.Println("Error unmarshalling listings:", err)
+			Failure <- err
 			return
 		}
 
 		fmt.Println("Found", len(rawListings), "listings")
 		for _, rawListing := range rawListings {
+			mileage := rawListing.Node.Listing.CustomSubTitlesWithRenderingFlags[0].Subtitle
+			if mileage == "" {
+				mileage = "Unknown"
+			}
+
 			listing := models.Listing{
 				ID:                  rawListing.Node.Listing.ID,
 				PrimaryListingPhoto: rawListing.Node.Listing.PrimaryListingPhoto.Image.URI,
@@ -117,6 +123,8 @@ func FacebookMarketplace(search models.Search) {
 				Location:            rawListing.Node.Listing.Location.ReverseGeocode.CityPage.DisplayName,
 				Title:               rawListing.Node.Listing.MarketplaceListingTitle,
 				IsSold:              rawListing.Node.Listing.IsSold,
+				Mileage:             mileage,
+				Description:         "",
 			}
 
 			addListing(listing)
@@ -136,21 +144,21 @@ func FacebookMarketplace(search models.Search) {
 	})
 
 	c.OnError(func(r *colly.Response, err error) {
-		fmt.Println("Request URL:", r.Request.URL, "failed with response:", r, "Error:", err)
+		Failure <- err
 	})
 
 	url, err := constructFacebookURL(search)
 	if err != nil {
-		fmt.Println("Error constructing URL:", err)
+		Failure <- err
 	}
 
 	if err = c.Visit(url); err != nil {
-		fmt.Println("Error visiting Facebook Marketplace:", err)
+		Failure <- err
 	}
 }
 
 func Start() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(3 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {

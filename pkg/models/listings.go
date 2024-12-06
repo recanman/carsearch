@@ -20,7 +20,10 @@ type RawListing struct {
 				AmountWithOffsetInCurrency string `json:"amount_with_offset_in_currency"`
 				Amount                     string `json:"amount"`
 			} `json:"listing_price"`
-			StrikethroughPrice                      string `json:"strikethrough_price"`
+			StrikethroughPrice struct {
+				FormattedAmount string `json:"formatted_amount"`
+				Amount          string `json:"amount"`
+			} `json:"strikethrough_price"`
 			IsMarketplaceListingWithComparablePrice string `json:"__isMarketplaceListingWithComparablePrice"`
 			ComparablePrice                         string `json:"comparable_price"`
 			ComparablePriceType                     string `json:"comparable_price_type"`
@@ -67,4 +70,6 @@ type Listing struct {
 	Location            string
 	Title               string
 	IsSold              bool
+	Mileage             string // it is the first subtitle
+	Description         string
 }
